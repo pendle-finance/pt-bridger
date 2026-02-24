@@ -1,5 +1,5 @@
 import inquirerConfirm from '@inquirer/confirm';
-import type { Address, Hex } from 'viem';
+import { erc20Abi, isAddress, isHex, type Address, type Hex, type PublicClient } from 'viem';
 import './env.ts'; // dotenv config
 
 export const debugLog = process.env.DEBUG === '1' ? console.debug : () => {};
@@ -31,4 +31,22 @@ export function bytes32ToAddress(a: Hex): Address {
     if (stripped0x.slice(0, NUM_ZEROS) !== '0'.repeat(NUM_ZEROS)) throw new Error('bytes32ToAddress: non zero prefix');
 
     return `0x${stripped0x.slice(NUM_ZEROS)}`;
+}
+
+export async function getTokenSymbol(client: PublicClient, token: Address): Promise<string> {
+    return await client.readContract({
+        abi: erc20Abi,
+        address: token,
+        functionName: 'symbol',
+    });
+}
+
+export function parseAddr(str: string): Address {
+    if (!isAddress(str, { strict: true })) throw new Error(`Invalid address ${str}`);
+    return str;
+}
+
+export function parseHex(str: string): Hex {
+    if (!isHex(str)) throw new Error(`Invalid hex string ${str}`);
+    return str;
 }

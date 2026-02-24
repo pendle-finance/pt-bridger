@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
-import type { Address } from 'viem';
-import { isAddress } from 'viem';
+import type { Address, Hex } from 'viem';
+import { parseAddr, parseHex } from './misc';
 
 dotenv.config({ quiet: true });
 
@@ -12,8 +12,12 @@ export function getEnv(key: string): string {
 
 export function getEnvAddress(key: string): Address {
     const value = getEnv(key);
-    if (!isAddress(value, { strict: false })) throw new Error(`Invalid address ${value}`);
-    return value as Address;
+    return parseAddr(value);
+}
+
+export function getEnvHex(key: string): Hex {
+    const value = getEnv(key);
+    return parseHex(value);
 }
 
 export function getEnvBigInt(key: string): bigint {
@@ -26,4 +30,11 @@ export function getEnvInt(key: string): number {
     const value = getEnv(key);
     if (!/^-?\d+$/.test(value)) throw new Error(`Invalid integer ${value}`);
     return parseInt(value, 10);
+}
+
+export function getEnvNumber(key: string): number {
+    const value = getEnv(key);
+    const res = parseFloat(value);
+    if (Number.isNaN(res) || !Number.isFinite(res)) throw new Error(`Invalid number ${value}`);
+    return res;
 }
