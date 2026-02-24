@@ -11,9 +11,8 @@ import {
     fmtTokenSymbol,
     sleep,
     throwErr,
-    WAD_ONE,
-    wadMul,
-} from './utils.ts';
+} from './utils/misc.ts';
+import { WAD_ONE, wadMul } from './utils/wadMath.ts';
 
 type BridgePtParams = {
     fromOft: Address;
