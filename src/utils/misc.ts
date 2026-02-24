@@ -1,5 +1,5 @@
 import inquirerConfirm from '@inquirer/confirm';
-import { erc20Abi, isAddress, isHex, type Address, type Hex, type PublicClient } from 'viem';
+import { type Address, checksumAddress, erc20Abi, type Hex, isAddress, isHex, type PublicClient } from 'viem';
 import './env.ts'; // dotenv config
 
 export const debugLog = process.env.DEBUG === '1' ? console.debug : () => {};
@@ -48,7 +48,7 @@ export async function getTokenSymbol(client: PublicClient, token: Address): Prom
 
 export function parseAddr(str: string): Address {
     if (!isAddress(str, { strict: true })) throw new Error(`Invalid address ${str}`);
-    return str;
+    return checksumAddress(str);
 }
 
 export function parseHex(str: string): Hex {
