@@ -1,6 +1,7 @@
 import * as dotenv from 'dotenv';
 import type { Address, Hex } from 'viem';
 import { parseAddr, parseHex } from './misc';
+import path from 'node:path';
 
 dotenv.config({ quiet: true });
 
@@ -38,3 +39,5 @@ export function getEnvNumber(key: string): number {
     if (Number.isNaN(res) || !Number.isFinite(res)) throw new Error(`Invalid number ${value}`);
     return res;
 }
+
+export const CACHE_DIR = path.resolve(path.join(__dirname, '..', '..', 'cache'));
