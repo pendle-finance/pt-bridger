@@ -5,6 +5,11 @@ import './env.ts'; // dotenv config
 export const debugLog = process.env.DEBUG === '1' ? console.debug : () => {};
 export const confirm = process.env.NO_CONFIRM === '1' ? () => Promise.resolve(true) : inquirerConfirm;
 
+export async function confirmOrThrow(message: string, throwMsg: string) {
+    const confirmed = await confirm({ message });
+    if (!confirmed) throw new Error(throwMsg);
+}
+
 export function throwErr(msg: string): never {
     throw new Error(msg);
 }

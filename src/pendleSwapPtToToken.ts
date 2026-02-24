@@ -1,9 +1,17 @@
 import pc from 'picocolors';
 import type { Address, PublicClient, WalletClient } from 'viem';
-import { approveToken } from './actions/approveToken.ts';
 import { pendleConvert } from './APIs/PendleConvertApi.ts';
+import { approveToken } from './actions/approveToken.ts';
 import type { PendleConvertAPIRequestBody } from './types/PendleConvertAPITypes.ts';
-import { confirm, debugLog, fmtTokenSymbol, getTokenSymbol, parseAddr, parseHex, throwErr } from './utils/misc.ts';
+import {
+    confirmOrThrow,
+    debugLog,
+    fmtTokenSymbol,
+    getTokenSymbol,
+    parseAddr,
+    parseHex,
+    throwErr,
+} from './utils/misc.ts';
 import { wadToSmallNum } from './utils/wadMath.ts';
 
 export type PendleSwapPtToTokenParams = {
@@ -83,9 +91,7 @@ export async function pendleSwapPtToToken(
             route.tx.to === PENDLE_ROUTER ? 'PendleRouter' : route.tx.to,
             route.contractParamInfo.method,
         );
-        if (!(await confirm({ message: 'Send transaction?' }))) {
-            throw new Error('Transaction cancelled');
-        }
+        await confirmOrThrow('Send transaction?', 'Transaction cancelled');
         const txHash = await clients.wallet.sendTransaction({
             chain: null,
             account: clients.wallet.account ?? throwErr('Account not found'),
