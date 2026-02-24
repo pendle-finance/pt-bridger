@@ -1,6 +1,6 @@
+import type { Api as BungeeGetRequestStatusApi } from '../types/BungeeGetRequestStatusAPITypes.js';
 import type { Api as BungeeQuoteApi } from '../types/BungeeQuoteAPITypes.js';
 import type { Api as BungeeSubmitApi, BungeeSwapReqBodyDto } from '../types/BungeeSubmitAutoAPITypes.js';
-import type { Api as BungeeGetRequestStatusApi } from '../types/BungeeGetRequestStatusAPITypes.js';
 
 // https://docs.bungee.exchange/bungee-api/integration-guides/check-status#status-code-enum
 export enum BungeeRequestStatus {

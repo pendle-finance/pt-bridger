@@ -1,7 +1,7 @@
 import pc from 'picocolors';
-import { pendleSwapPtToToken } from '../pendleSwapPtToToken';
 import { initializeEnv } from '../actions/initializeEnv.ts';
 import { getOftToken } from '../bridgePt.ts';
+import { pendleSwapPtToToken } from '../pendleSwapPtToToken';
 
 async function main() {
     const { accAddr, bClients, bOft, bToken, rawAmount, slippageWad } = await initializeEnv();

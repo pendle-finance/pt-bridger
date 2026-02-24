@@ -1,7 +1,7 @@
-import { initializeEnv } from '../actions/initializeEnv';
 import pc from 'picocolors';
-import { bridgeTokenViaBungee } from '../bridgeTokenViaBungee';
 import { BungeeApi } from '../APIs/BungeeApi';
+import { initializeEnv } from '../actions/initializeEnv';
+import { bridgeTokenViaBungee } from '../bridgeTokenViaBungee';
 import { getBalanceOf } from '../utils/misc';
 
 async function main() {

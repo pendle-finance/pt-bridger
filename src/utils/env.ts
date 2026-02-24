@@ -1,7 +1,7 @@
+import path from 'node:path';
 import * as dotenv from 'dotenv';
 import type { Address, Hex } from 'viem';
 import { parseAddr, parseHex } from './misc';
-import path from 'node:path';
 
 dotenv.config({ quiet: true });
 

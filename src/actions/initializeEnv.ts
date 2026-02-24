@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http, type Address, type PublicClient, type WalletClient } from 'viem';
+import { type Address, createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { fetchLzMetadata, type LZMetadata } from '../APIs/LZApi';
 import { getPeer } from '../bridgePt';

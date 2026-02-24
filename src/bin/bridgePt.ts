@@ -1,6 +1,6 @@
 import pc from 'picocolors';
-import { bridgePt } from '../bridgePt.ts';
 import { initializeEnv } from '../actions/initializeEnv.ts';
+import { bridgePt } from '../bridgePt.ts';
 
 async function main() {
     const { lzMetadata, aClients, bChainId, accAddr, aOft, rawAmount, slippageWad } = await initializeEnv();
