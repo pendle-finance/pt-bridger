@@ -15,6 +15,7 @@
     },
     "scripts": {
         "bridge-pt": "tsx ./src/bin/bridgePt.ts",
+        "pendle-swap-pt-to-token": "tsx ./src/bin/pendleSwapPtToToken.ts",
         "clean-cache": "rm -rf cache/"
     }
 }
