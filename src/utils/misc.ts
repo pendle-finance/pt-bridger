@@ -46,6 +46,15 @@ export async function getTokenSymbol(client: PublicClient, token: Address): Prom
     });
 }
 
+export async function getBalanceOf(client: PublicClient, token: Address, address: Address): Promise<bigint> {
+    return await client.readContract({
+        abi: erc20Abi,
+        address: token,
+        functionName: 'balanceOf',
+        args: [address],
+    });
+}
+
 export function parseAddr(str: string): Address {
     if (!isAddress(str, { strict: true })) throw new Error(`Invalid address ${str}`);
     return checksumAddress(str);

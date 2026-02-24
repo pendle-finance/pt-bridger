@@ -10,25 +10,18 @@ import {
     confirmOrThrow,
     debugLog,
     fmtTokenSymbol,
+    getBalanceOf,
     sleep,
     throwErr,
 } from './utils/misc.ts';
-import { WAD_ONE, wadMul } from './utils/wadMath.ts';
+import { wadMul } from './utils/wadMath.ts';
 
 type BridgePtParams = {
     fromOft: Address;
     rawAmount: bigint;
     toChainId: number;
+    slippageWad: bigint;
 };
-
-/**
- * For Pendle PT, bridging does not have any fee.
- * However, LayerZero only allows bridge an amount with smaller decimals than the actual token (typically 6 decimals).
- * The dust amount is sent back to the specified account.
- *
- * This slippage is used to only cap the dust amount.
- */
-const BRIDGE_SLIPPAGE = (WAD_ONE * 5n) / 1000n; // 0.5%
 
 export async function getPeer(
     publicClient: PublicClient,
@@ -69,7 +62,7 @@ export async function bridgePt(
     | undefined
 > {
     const { eid: dstEid, peer: toOft } = await getPeer(clients.public, lzMetadata, params.fromOft, params.toChainId);
-    const minAmountLD = wadMul(params.rawAmount, BRIDGE_SLIPPAGE);
+    const minAmountLD = wadMul(params.rawAmount, params.slippageWad);
     const walletAddr = (await clients.wallet.getAddresses())[0] ?? throwErr('No address found');
 
     const oftWrappedToken = await getOftToken(clients.public, params.fromOft);
@@ -133,12 +126,7 @@ export async function bridgePt(
             args: [sendParams, false /* do not use lz token */],
         });
 
-        const balanceBefore = await clients.public.readContract({
-            abi: erc20Abi,
-            address: oftWrappedToken,
-            functionName: 'balanceOf',
-            args: [walletAddr],
-        });
+        const balanceBefore = await getBalanceOf(clients.public, oftWrappedToken, walletAddr);
 
         console.log('Balance before :', balanceBefore);
         console.log('Send amount    :', params.rawAmount);

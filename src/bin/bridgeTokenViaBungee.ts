@@ -1,8 +1,8 @@
 import { initializeEnv } from '../actions/initializeEnv';
 import pc from 'picocolors';
-import { erc20Abi } from 'viem';
 import { bridgeTokenViaBungee } from '../bridgeTokenViaBungee';
 import { BungeeApi } from '../APIs/BungeeApi';
+import { getBalanceOf } from '../utils/misc';
 
 async function main() {
     const { aClients, bClients, aChainId, bChainId, accAddr, aToken, bToken, slippageWad, bungeeApiKey } =
@@ -11,15 +11,7 @@ async function main() {
     console.log(`Account address: ${pc.yellow(accAddr)}`);
     console.log(pc.bold('NOTICE. This script will transfer ALL tokens of the account. Proceed with caution.'));
 
-    const bTokenBalance =
-        ((await bClients.public.readContract({
-            abi: erc20Abi,
-            address: bToken,
-            functionName: 'balanceOf',
-            args: [accAddr],
-        })) *
-            20n) /
-        100n;
+    const bTokenBalance = await getBalanceOf(bClients.public, bToken, accAddr);
 
     console.log(`Balance of ${pc.yellow(bToken)}: ${pc.yellow(bTokenBalance.toString())}`);
     const bungeeApi = BungeeApi.create({ apiKey: bungeeApiKey });

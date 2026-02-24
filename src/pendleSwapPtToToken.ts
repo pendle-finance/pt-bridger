@@ -7,6 +7,7 @@ import {
     confirmOrThrow,
     debugLog,
     fmtTokenSymbol,
+    getBalanceOf,
     getTokenSymbol,
     parseAddr,
     parseHex,
@@ -29,7 +30,9 @@ const PENDLE_ROUTER: Address = '0x888888888889758F76e7103c6CbF23ABbF58F946';
 export async function pendleSwapPtToToken(
     clients: { public: PublicClient; wallet: WalletClient },
     params: PendleSwapPtToTokenParams,
-) {
+): Promise<{
+    rawAmountTokenOut: bigint;
+}> {
     try {
         console.group(pc.bold('## Approvals checking!'));
         const approvalStatus = await approveToken(clients, {
@@ -83,8 +86,12 @@ export async function pendleSwapPtToToken(
         const route = convertRes.routes[0];
         if (!route) throw new Error('Route not found');
 
-        console.log('Amount PT in       :', params.rawAmount);
-        console.log('Amount token out   :', route.outputs[0]?.amount);
+        const account = clients.wallet.account ?? throwErr('Account not found');
+        const tokenBalanceBefore = await getBalanceOf(clients.public, params.toToken, account.address);
+
+        console.log('Amount PT in                       :', params.rawAmount);
+        console.log('(Estimated) Amount token out       :', route.outputs[0]?.amount);
+        console.log('Token balance before               :', tokenBalanceBefore);
 
         console.log(
             'Calling %s.%s',
@@ -94,7 +101,7 @@ export async function pendleSwapPtToToken(
         await confirmOrThrow('Send transaction?', 'Transaction cancelled');
         const txHash = await clients.wallet.sendTransaction({
             chain: null,
-            account: clients.wallet.account ?? throwErr('Account not found'),
+            account,
             to: parseAddr(route.tx.to),
             data: parseHex(route.tx.data),
             value: route.tx.value ? BigInt(route.tx.value) : 0n,
@@ -102,6 +109,13 @@ export async function pendleSwapPtToToken(
         console.log('Transaction hash:', txHash);
         await clients.public.waitForTransactionReceipt({ hash: txHash });
         console.log(pc.green('Transaction sent succesfully!'));
+
+        const tokenBalanceAfter = await getBalanceOf(clients.public, params.toToken, account.address);
+        const actualTokenOut = tokenBalanceAfter - tokenBalanceBefore;
+        console.log('Token balance after            :', tokenBalanceAfter);
+        console.log('Actual token out               :', actualTokenOut);
+
+        return { rawAmountTokenOut: actualTokenOut };
     } finally {
         console.groupEnd();
     }
