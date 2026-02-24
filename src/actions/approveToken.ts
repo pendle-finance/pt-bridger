@@ -1,4 +1,3 @@
-import pc from 'picocolors';
 import type { Address, PublicClient, WalletClient } from 'viem';
 import { erc20Abi } from 'viem';
 import { confirm, fmtTokenSymbol, getTokenSymbol, throwErr } from '../utils/misc';
