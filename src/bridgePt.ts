@@ -13,6 +13,7 @@ import {
     throwErr,
 } from './utils/misc.ts';
 import { WAD_ONE, wadMul } from './utils/wadMath.ts';
+import { approveToken } from './actions/approveToken.ts';
 
 type BridgePtParams = {
     fromOft: Address;
@@ -29,6 +30,32 @@ type BridgePtParams = {
  */
 const BRIDGE_SLIPPAGE = (WAD_ONE * 5n) / 1000n; // 0.5%
 
+export async function getPeer(
+    publicClient: PublicClient,
+    lzMetadata: LZMetadata,
+    oft: Address,
+    chainId: number,
+): Promise<{ eid: number; peer: Address }> {
+    const eid = lzMetadata.getEidV2ByChainId(chainId) ?? throwErr(`Unknown chain ID ${chainId}`);
+    const peer = bytes32ToAddress(
+        await publicClient.readContract({
+            abi: OFTAbi,
+            address: oft,
+            functionName: 'peers',
+            args: [eid],
+        }),
+    );
+    return { eid, peer };
+}
+
+export async function getOftToken(publicClient: PublicClient, oft: Address): Promise<Address> {
+    return await publicClient.readContract({
+        abi: OFTAbi,
+        address: oft,
+        functionName: 'token',
+    });
+}
+
 export async function bridgePt(
     lzMetadata: LZMetadata,
     clients: { public: PublicClient; wallet: WalletClient },
@@ -41,23 +68,12 @@ export async function bridgePt(
       }
     | undefined
 > {
-    const dstEid = lzMetadata.getEidV2ByChainId(params.toChainId) ?? throwErr(`Unknown chain ID ${params.toChainId}`);
+    const { eid: dstEid, peer: toOft } = await getPeer(clients.public, lzMetadata, params.fromOft, params.toChainId);
     const minAmountLD = wadMul(params.rawAmount, BRIDGE_SLIPPAGE);
     const walletAddr = (await clients.wallet.getAddresses())[0] ?? throwErr('No address found');
-    const toOft = bytes32ToAddress(
-        await clients.public.readContract({
-            abi: OFTAbi,
-            address: params.fromOft,
-            functionName: 'peers',
-            args: [dstEid],
-        }),
-    );
 
-    const oftWrappedToken = await clients.public.readContract({
-        abi: OFTAbi,
-        address: params.fromOft,
-        functionName: 'token',
-    });
+    const oftWrappedToken = await getOftToken(clients.public, params.fromOft);
+
     const tokenSymbol = await clients.public.readContract({
         abi: erc20Abi,
         address: oftWrappedToken,
@@ -65,42 +81,35 @@ export async function bridgePt(
     });
 
     if (oftWrappedToken !== params.fromOft) {
-        const allowance = await clients.public.readContract({
-            abi: erc20Abi,
-            address: oftWrappedToken,
-            functionName: 'allowance',
-            args: [walletAddr, params.fromOft],
-        });
-        if (allowance < params.rawAmount) {
-            console.group(pc.bold(pc.yellow('# Approval required!')));
-            console.log(
-                `Approving ${params.rawAmount} ${fmtTokenSymbol(tokenSymbol, oftWrappedToken)} to ${fmtTokenSymbol('OFT adapter', params.fromOft)}...`,
-            );
-
-            if (!(await confirm({ message: 'Send approval transaction?' }))) {
-                console.log('Transaction cancelled');
-                console.groupEnd();
-                return;
-            }
-
-            const { request } = await clients.public.simulateContract({
-                abi: erc20Abi,
-                address: oftWrappedToken,
-                functionName: 'approve',
-                args: [params.fromOft, params.rawAmount],
-                account: clients.wallet.account,
+        console.group(pc.bold('## Approval checking'));
+        try {
+            const approvalStatus = await approveToken(clients, {
+                token: oftWrappedToken,
+                spender: params.fromOft,
+                rawAmount: params.rawAmount,
             });
-            const txHash = await clients.wallet.writeContract(request);
-            await clients.public.waitForTransactionReceipt({ hash: txHash });
-
-            console.log(pc.green('Approval successful!'));
+            switch (approvalStatus) {
+                case 'NOT_ENOUGH_BALANCE':
+                    throw new Error('Balance is not enough');
+                case 'ALREADY_APPROVED':
+                    console.log('Already approved');
+                    break;
+                case 'CANCELLED':
+                    throw new Error('Transaction cancelled');
+                case 'SUCCESS':
+                    console.log('Approval successful!');
+                    break;
+                default:
+                    approvalStatus satisfies never;
+            }
+        } finally {
             console.groupEnd();
         }
     }
 
     console.group(
         pc.bold(
-            `# Sending ${fmtTokenSymbol(tokenSymbol, oftWrappedToken)} from ${await clients.public.getChainId()} to ${params.toChainId}`,
+            `## Sending ${fmtTokenSymbol(tokenSymbol, oftWrappedToken)} from ${await clients.public.getChainId()} to ${params.toChainId}`,
         ),
     );
 
@@ -153,7 +162,7 @@ export async function bridgePt(
     console.log(pc.green('Bridging transaction successful!'));
     console.groupEnd();
 
-    console.group(pc.bold('# Polling LayerZero bridging transaction status...'));
+    console.group(pc.bold('## Polling LayerZero bridging transaction status...'));
 
     console.log('See live status on LayerZero Scan:', getLzScanUrl({ txHash }));
 
