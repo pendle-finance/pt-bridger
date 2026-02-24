@@ -21,9 +21,13 @@ export async function initializeEnv(): Promise<{
 
     aOft: Address;
     bOft: Address;
+    aToken: Address;
     bToken: Address;
     rawAmount: bigint;
     slippageWad: bigint;
+
+    pendleApiKey: string | undefined;
+    bungeeApiKey: string | undefined;
 }> {
     const lzMetadata = await fetchLzMetadata({ cache: true });
     const aTransport = http(getEnv('A_RPC_URL'));
@@ -44,11 +48,15 @@ export async function initializeEnv(): Promise<{
     const accAddr = account.address;
     const aChainId = await aClients.public.getChainId();
     const bChainId = await bClients.public.getChainId();
+    const aToken = getEnvAddress('A_TOKEN');
     const bToken = getEnvAddress('B_TOKEN');
     const aOft = getEnvAddress('A_OFT');
     const { peer: bOft } = await getPeer(aClients.public, lzMetadata, getEnvAddress('A_OFT'), bChainId);
     const rawAmount = getEnvBigInt('RAW_AMOUNT');
     const slippageWad = smallNumToWad(getEnvNumber('SLIPPAGE'));
+
+    const pendleApiKey = process.env.PENDLE_API_KEY;
+    const bungeeApiKey = process.env.BUNGEE_API_KEY;
 
     return {
         lzMetadata,
@@ -60,7 +68,11 @@ export async function initializeEnv(): Promise<{
         aOft,
         bOft,
         bToken,
+        aToken,
         rawAmount,
         slippageWad,
+
+        pendleApiKey,
+        bungeeApiKey,
     };
 }
