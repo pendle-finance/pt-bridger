@@ -10,7 +10,7 @@ dotenv.config();
 
 async function main() {
     const lzMetadata = await fetchLzMetadata({ cache: true });
-    const transport = http(getEnv('FROM_RPC_URL'));
+    const transport = http(getEnv('A_RPC_URL'));
     const clients = {
         public: createPublicClient({
             transport,
@@ -28,9 +28,9 @@ async function main() {
     console.log(`Account address: ${pc.yellow(accAddr)}`);
 
     await bridgePt(lzMetadata, clients, {
-        fromOft: getEnvAddress('FROM_OFT'),
+        fromOft: getEnvAddress('A_OFT'),
         rawAmount: getEnvBigInt('RAW_AMOUNT'),
-        toChainId: getEnvInt('TO_CHAIN_ID'),
+        toChainId: getEnvInt('B_CHAIN_ID'),
     });
 }
 
