@@ -1,19 +1,19 @@
 import pc from 'picocolors';
-import type { Address, PublicClient, WalletClient } from 'viem';
+import type { Address, Hex, PublicClient, WalletClient } from 'viem';
 import { erc20Abi } from 'viem';
-import { OFTAbi } from './abis/index.ts';
 import { getLzMessageStatusByTxHash, getLzScanUrl, type LZMetadata } from './APIs/LZApi.ts';
+import { OFTAbi } from './abis/index.ts';
+import { approveToken } from './actions/approveToken.ts';
 import {
     addressToBytes32,
     bytes32ToAddress,
-    confirm,
+    confirmOrThrow,
     debugLog,
     fmtTokenSymbol,
     sleep,
     throwErr,
 } from './utils/misc.ts';
 import { WAD_ONE, wadMul } from './utils/wadMath.ts';
-import { approveToken } from './actions/approveToken.ts';
 
 type BridgePtParams = {
     fromOft: Address;
@@ -62,7 +62,7 @@ export async function bridgePt(
     params: BridgePtParams,
 ): Promise<
     | {
-          txHash: string;
+          txHash: Hex;
           sentAmount: bigint;
           toOft: Address;
       }
@@ -107,108 +107,113 @@ export async function bridgePt(
         }
     }
 
-    console.group(
-        pc.bold(
-            `## Sending ${fmtTokenSymbol(tokenSymbol, oftWrappedToken)} from ${await clients.public.getChainId()} to ${params.toChainId}`,
-        ),
-    );
+    let sentAmount: bigint;
+    let txHash: Hex;
+    try {
+        console.group(
+            pc.bold(
+                `## Sending ${fmtTokenSymbol(tokenSymbol, oftWrappedToken)} from ${await clients.public.getChainId()} to ${params.toChainId}`,
+            ),
+        );
 
-    const sendParams = {
-        dstEid,
-        to: addressToBytes32(walletAddr),
-        amountLD: params.rawAmount,
-        minAmountLD,
-        extraOptions: '0x',
-        composeMsg: '0x',
-        oftCmd: '0x',
-    } as const;
+        const sendParams = {
+            dstEid,
+            to: addressToBytes32(walletAddr),
+            amountLD: params.rawAmount,
+            minAmountLD,
+            extraOptions: '0x',
+            composeMsg: '0x',
+            oftCmd: '0x',
+        } as const;
 
-    const quotedFee = await clients.public.readContract({
-        abi: OFTAbi,
-        address: params.fromOft,
-        functionName: 'quoteSend',
-        args: [sendParams, false /* do not use lz token */],
-    });
+        const quotedFee = await clients.public.readContract({
+            abi: OFTAbi,
+            address: params.fromOft,
+            functionName: 'quoteSend',
+            args: [sendParams, false /* do not use lz token */],
+        });
 
-    const balanceBefore = await clients.public.readContract({
-        abi: erc20Abi,
-        address: oftWrappedToken,
-        functionName: 'balanceOf',
-        args: [walletAddr],
-    });
+        const balanceBefore = await clients.public.readContract({
+            abi: erc20Abi,
+            address: oftWrappedToken,
+            functionName: 'balanceOf',
+            args: [walletAddr],
+        });
 
-    console.log('Balance before :', balanceBefore);
-    console.log('Send amount    :', params.rawAmount);
-    console.log('Native fee     :', quotedFee.nativeFee);
+        console.log('Balance before :', balanceBefore);
+        console.log('Send amount    :', params.rawAmount);
+        console.log('Native fee     :', quotedFee.nativeFee);
 
-    if (!(await confirm({ message: 'Send bridging transaction?' }))) {
-        console.log('Transaction cancelled');
+        await confirmOrThrow('Send briding transaction?', 'Trasaction cancelled');
+
+        const { request, result } = await clients.public.simulateContract({
+            abi: OFTAbi,
+            address: params.fromOft,
+            functionName: 'send',
+            args: [sendParams, quotedFee, /* refund address */ walletAddr],
+            value: quotedFee.nativeFee,
+            account: clients.wallet.account,
+        });
+        txHash = await clients.wallet.writeContract(request);
+        await clients.public.waitForTransactionReceipt({ hash: txHash });
+
+        debugLog('Transaction result:', result);
+        console.log(pc.green('Bridging transaction successful!'));
+        sentAmount = result[1].amountSentLD;
+    } finally {
         console.groupEnd();
-        return;
     }
 
-    const { request, result } = await clients.public.simulateContract({
-        abi: OFTAbi,
-        address: params.fromOft,
-        functionName: 'send',
-        args: [sendParams, quotedFee, /* refund address */ walletAddr],
-        value: quotedFee.nativeFee,
-        account: clients.wallet.account,
-    });
-    const txHash = await clients.wallet.writeContract(request);
-    await clients.public.waitForTransactionReceipt({ hash: txHash });
+    try {
+        console.group(pc.bold('## Polling LayerZero bridging transaction status...'));
 
-    debugLog('Transaction result:', result);
-    console.log(pc.green('Bridging transaction successful!'));
-    console.groupEnd();
+        console.log('See live status on LayerZero Scan:', getLzScanUrl({ txHash }));
 
-    console.group(pc.bold('## Polling LayerZero bridging transaction status...'));
+        let numRetry = 3;
+        let delivered = false;
+        let waitTime = 5000;
+        while (!delivered) {
+            await sleep(waitTime);
+            waitTime = Math.min(Math.floor(waitTime * 1.5), 15_000);
 
-    console.log('See live status on LayerZero Scan:', getLzScanUrl({ txHash }));
-
-    let numRetry = 3;
-    let delivered = false;
-    let waitTime = 5000;
-    while (!delivered) {
-        await sleep(waitTime);
-        waitTime = Math.min(Math.floor(waitTime * 1.5), 15_000);
-
-        const status = await getLzMessageStatusByTxHash({ txHash });
-        if (!status || status.name == null) {
-            console.log(pc.yellow(`Transaction status not found. Retrying... (Sleep for ${waitTime}ms)`));
-            numRetry--;
-            if (numRetry <= 0) throw new Error('Max retries exceeded. Transaction status not found.');
-        } else {
-            console.log(
-                `Transaction status: ${pc.yellow(status.name ?? '')} ${status.message ?? ''} (Sleep for ${waitTime}ms)`,
-            );
-            switch (status.name) {
-                case 'DELIVERED':
-                    delivered = true;
-                    console.log(pc.green('LayerZero message delivered!'));
-                    break;
-                case 'INFLIGHT':
-                case 'CONFIRMING':
-                    // do nothing, just wait
-                    break;
-                case 'FAILED':
-                case 'BLOCKED':
-                case 'PAYLOAD_STORED':
-                case 'APPLICATION_BURNED':
-                case 'APPLICATION_SKIPPED':
-                case 'UNRESOLVABLE_COMMAND':
-                case 'MALFORMED_COMMAND':
-                    throw new Error(`Transaction status: ${status.name} ${status.message ?? ''}`);
-                default:
-                    status.name satisfies never;
+            const status = await getLzMessageStatusByTxHash({ txHash });
+            if (!status || status.name == null) {
+                console.log(pc.yellow(`Transaction status not found. Retrying... (Sleep for ${waitTime}ms)`));
+                numRetry--;
+                if (numRetry <= 0) throw new Error('Max retries exceeded. Transaction status not found.');
+            } else {
+                console.log(
+                    `Transaction status: ${pc.yellow(status.name ?? '')} ${status.message ?? ''} (Sleep for ${waitTime}ms)`,
+                );
+                switch (status.name) {
+                    case 'DELIVERED':
+                        delivered = true;
+                        console.log(pc.green('LayerZero message delivered!'));
+                        break;
+                    case 'INFLIGHT':
+                    case 'CONFIRMING':
+                        // do nothing, just wait
+                        break;
+                    case 'FAILED':
+                    case 'BLOCKED':
+                    case 'PAYLOAD_STORED':
+                    case 'APPLICATION_BURNED':
+                    case 'APPLICATION_SKIPPED':
+                    case 'UNRESOLVABLE_COMMAND':
+                    case 'MALFORMED_COMMAND':
+                        throw new Error(`Transaction status: ${status.name} ${status.message ?? ''}`);
+                    default:
+                        status.name satisfies never;
+                }
             }
         }
+    } finally {
+        console.groupEnd();
     }
-    console.groupEnd();
 
     return {
         txHash,
-        sentAmount: result[1].amountSentLD,
+        sentAmount,
         toOft,
     };
 }
