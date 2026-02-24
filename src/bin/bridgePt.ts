@@ -2,7 +2,7 @@ import pc from 'picocolors';
 import { createPublicClient, createWalletClient, http, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { bridgePt } from '../bridgePt.ts';
-import { fetchLzMetadata } from '../LZApi.ts';
+import { fetchLzMetadata } from '../APIs/LZApi.ts';
 import { getEnv, getEnvAddress, getEnvBigInt, getEnvInt } from '../utils/env.ts';
 
 async function main() {

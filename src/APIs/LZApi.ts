@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { LZMessageStatus, LZMessageStatusResponse } from './types/LZMessageStatusResponse.ts';
-import type { ChainMetadata, RawLZMetadataResponse } from './types/LZMetadataResponse.ts';
-import { debugLog } from './utils/misc.ts';
+import type { LZMessageStatus, LZMessageStatusResponse } from '../types/LZMessageStatusResponse.ts';
+import type { ChainMetadata, RawLZMetadataResponse } from '../types/LZMetadataResponse.ts';
+import { debugLog } from '../utils/misc.ts';
 
 export const LZ_METADATA_CACHE_FILE = path.join(__dirname, '../cache/lz-metadata.json');
 

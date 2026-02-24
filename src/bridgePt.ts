@@ -2,7 +2,7 @@ import pc from 'picocolors';
 import type { Address, PublicClient, WalletClient } from 'viem';
 import { erc20Abi } from 'viem';
 import { OFTAbi } from './abis/index.ts';
-import { getLzMessageStatusByTxHash, getLzScanUrl, type LZMetadata } from './LZApi.ts';
+import { getLzMessageStatusByTxHash, getLzScanUrl, type LZMetadata } from './APIs/LZApi.ts';
 import {
     addressToBytes32,
     bytes32ToAddress,
