@@ -65,7 +65,7 @@ export async function bridgeTokenViaBungee(
 
             console.log('Input amount       : ', params.rawAmount);
             console.log('Output amount      : ', quoteRes.fullResponse.result?.autoRoute.output.amount);
-            console.log('Slippage            : ', wadToSmallNum(params.slippageWad));
+            console.log('Slippage           : ', wadToSmallNum(params.slippageWad));
             if (!quoteRes.signTypedData || !quoteRes.witness)
                 throw new Error('Can not sign Permite2 for bungee: missing signTypedData or witness');
 
