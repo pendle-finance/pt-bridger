@@ -13,12 +13,14 @@ Pendle deploys PT (Principal Token) on a **native chain** (e.g. Arbitrum), but a
 ```
 Chain A (Bridged PT)                          Chain B (Original PT)
 ┌──────────────┐    LayerZero OFT bridge     ┌──────────────────────┐
-│ Bridged PT   │ ──────────────────────────→ │ Original PT          │
+│ Bridged PT   │ ──────────────────────────> │ Original PT          │
 └──────────────┘         Step 1              │         │            │
+                                             │         │            │
                                              │   Pendle Convert API │
-                                             │         ↓            │
+                                             │         │            │
+                                             │         V            │
 ┌──────────────┐    Bungee bridge            │ Output Token (e.g.   │
-│ Token (e.g.  │ ←────────────────────────── │ USDC)                │
+│ Token (e.g.  │ <────────────────────────── │ USDC)                │
 │ USDC)        │         Step 3              └──────────────────────┘
 └──────────────┘                                    Step 2
 ```
