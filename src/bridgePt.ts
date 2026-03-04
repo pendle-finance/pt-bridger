@@ -14,7 +14,7 @@ import {
     sleep,
     throwErr,
 } from './utils/misc.ts';
-import { wadMul } from './utils/wadMath.ts';
+import { wadSlippageMul } from './utils/wadMath.ts';
 
 type BridgePtParams = {
     fromOft: Address;
@@ -62,7 +62,7 @@ export async function bridgePt(
     | undefined
 > {
     const { eid: dstEid, peer: toOft } = await getPeer(clients.public, lzMetadata, params.fromOft, params.toChainId);
-    const minAmountLD = wadMul(params.rawAmount, params.slippageWad);
+    const minAmountLD = wadSlippageMul(params.rawAmount, params.slippageWad);
     const walletAddr = (await clients.wallet.getAddresses())[0] ?? throwErr('No address found');
 
     const oftWrappedToken = await getOftToken(clients.public, params.fromOft);
@@ -128,9 +128,10 @@ export async function bridgePt(
 
         const balanceBefore = await getBalanceOf(clients.public, oftWrappedToken, walletAddr);
 
-        console.log('Balance before :', balanceBefore);
-        console.log('Send amount    :', params.rawAmount);
-        console.log('Native fee     :', quotedFee.nativeFee);
+        console.log('Balance before         :', balanceBefore);
+        console.log('Send amount            :', params.rawAmount);
+        console.log('Min receive amount     :', minAmountLD);
+        console.log('Native fee             :', quotedFee.nativeFee);
 
         await confirmOrThrow('Send briding transaction?', 'Trasaction cancelled');
 
