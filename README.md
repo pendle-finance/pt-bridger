@@ -13,19 +13,24 @@ Pendle deploys PT (Principal Token) on a **native chain** (e.g. Arbitrum), but a
 ```
 Chain A (Bridged PT)                          Chain B (Original PT)
 ┌──────────────┐    LayerZero OFT bridge     ┌──────────────────────┐
-│ Bridged PT   │ ──────────────────────────► │ Original PT          │
+│ Bridged PT   │ ──────────────────────────→ │ Original PT          │
 └──────────────┘         Step 1              │         │            │
                                              │   Pendle Convert API │
-                                             │         ▼            │
+                                             │         ↓            │
 ┌──────────────┐    Bungee bridge            │ Output Token (e.g.   │
-│ Token (e.g.  │ ◄────────────────────────── │ USDC)                │
+│ Token (e.g.  │ ←────────────────────────── │ USDC)                │
 │ USDC)        │         Step 3              └──────────────────────┘
 └──────────────┘                                    Step 2
 ```
 
-## How it works (step by step)
+<details>
+<summary>
 
-### Step 1 — Bridge PT from chain A to chain B (`bridgePt`)
+### How it works (step by step)
+
+</summary>
+
+#### Step 1 — Bridge PT from chain A to chain B (`bridgePt`)
 
 1. Looks up the destination chain's OFT peer address using the LayerZero metadata API.
 2. Calculates the minimum acceptable amount after slippage (`rawAmount * (1 - slippage)`).
@@ -35,14 +40,14 @@ Chain A (Bridged PT)                          Chain B (Original PT)
 6. Polls the LayerZero Scan API until the cross-chain message status is `DELIVERED` (with exponential backoff).
 7. Returns the actual amount sent (may differ from `rawAmount` due to dust/fees).
 
-### Step 2 — Swap PT to token on chain B (`pendleSwapPtToToken`)
+#### Step 2 — Swap PT to token on chain B (`pendleSwapPtToToken`)
 
 1. **Approval** — Checks the PT token allowance for the Pendle Router (`0x888888888889758F76e7103c6CbF23ABbF58F946`). If insufficient, sends an approval transaction. Throws if the wallet balance is insufficient or the user cancels.
 2. **Route Discovery** — Builds a convert request body (with inputs, outputs, slippage, aggregator and limit order settings) and calls the Pendle Convert API to find the best swap route.
 3. **Swap Execution** — Logs the estimated output amount, asks for user confirmation, then sends the on-chain transaction returned by the API. Waits for the transaction receipt.
 4. **Result** — Measures the actual token output by comparing the receiver's token balance before and after the swap, and returns it as `rawAmountTokenOut`.
 
-### Step 3 — Bridge token from chain B back to chain A (`bridgeTokenViaBungee`)
+#### Step 3 — Bridge token from chain B back to chain A (`bridgeTokenViaBungee`)
 
 1. Fetches a quote from the Bungee API with the token amount, source/destination chains, and slippage.
 2. If the token has not been approved for Bungee's Permit2 contract (`0x000000000022D473030F116dDEE9F6B43aC78BA3`), sends an approval transaction.
@@ -50,6 +55,8 @@ Chain A (Bridged PT)                          Chain B (Original PT)
 4. Submits the signed request to Bungee.
 5. Polls the Bungee status API until the request is `FULFILLED` or `SETTLED` (with exponential backoff). Fails if `CANCELLED`, `EXPIRED`, or `REFUNDED`.
 6. The output token arrives in the wallet on chain A.
+
+</details>
 
 # Demo
 
