@@ -1,5 +1,7 @@
 # pt-bridger
 
+> **Looking for a simpler approach?** Check out the [Intent-Based flow](./CROSS_CHAIN_SWAP_README.md) — it handles bridging and swapping as a single intent managed by Pendle's backend.
+
 This script helps performing the bridging and swapping PT with another token. Basically it allows to do the following actions sequentially, in one go:
 
 - Bridge PT from chain `A` to chain `B` (via LayerZero natively);
