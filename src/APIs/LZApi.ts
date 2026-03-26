@@ -67,7 +67,8 @@ export class LZMetadata {
 
     getEidV2ByChainId(chainId: number): number | undefined {
         const chainMetadata = this.allChainMetadata().find(
-            (metadata) => metadata.chainDetails?.nativeChainId === chainId,
+            (metadata) =>
+                metadata.chainDetails?.chainType === 'evm' && metadata.chainDetails?.nativeChainId === chainId,
         );
 
         const eidStr = chainMetadata?.deployments.filter(({ version }) => version === 2)[0]?.eid;
