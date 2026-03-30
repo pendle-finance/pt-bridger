@@ -113,17 +113,17 @@ yarn list-intents              # lists PENDING intents (default)
 yarn list-intents 0 20         # with skip and limit
 ```
 
-Displays a table of your intents with intent ID, action type, status, overall state, and tokens.
+Displays a list of your pending intents. You can select an intent from the list to continue it — the script will pick up where it left off (deposit, poll, or retry/cancel).
 
-### Continuing an existing intent
+### Continuing an existing intent by ID
 
-If the script was interrupted (e.g. after submitting the intent but before depositing), you can resume it:
+Alternatively, you can continue a specific intent directly:
 
 ```sh
 yarn continue-intent <intentId>
 ```
 
-The script fetches the intent state and picks up where it left off:
+Both methods handle the intent state the same way:
 - If **awaiting deposit** — continues from the deposit step
 - If **processing** — continues polling
 - If **failed** — prompts for retry or cancel
