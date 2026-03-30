@@ -36,34 +36,34 @@ function displaySimulation(sim: SimulateCrossChainSwapResponse) {
 // Main
 // ---------------------------------------------------------------------------
 
-async function main() {
+export async function main() {
     const {
         accAddr,
-        aChainId,
-        bChainId,
-        cChainId,
-        bMarket,
-        aTokenIn,
-        cTokenOut,
+        srcChainId,
+        hubChainId,
+        dstChainId,
+        hubMarket,
+        srcTokenIn,
+        dstTokenOut,
         rawAmount,
         slippage,
         bridgeRoutePriority,
         pendleApiBaseUrl,
-        aClients,
-        cClients,
+        srcClients,
+        dstClients,
         ctx,
     } = await initializeIntentEnv();
 
     async function simulateWithStalenessCheck(): Promise<SimulateCrossChainSwapResponse> {
         while (true) {
             console.log('Fetching simulation...');
-            const sim = await CrossChainSwapApi.simulateCrossChainSwap(pendleApiBaseUrl, bChainId, bMarket, {
+            const sim = await CrossChainSwapApi.simulateCrossChainSwap(pendleApiBaseUrl, hubChainId, hubMarket, {
                 receiver: accAddr,
-                tokenIn: aTokenIn,
+                tokenIn: srcTokenIn,
                 amountIn: String(rawAmount),
-                tokenOut: cTokenOut,
-                fromChainId: aChainId,
-                toChainId: cChainId,
+                tokenOut: dstTokenOut,
+                fromChainId: srcChainId,
+                toChainId: dstChainId,
                 slippage,
                 bridgeRoutePriority,
             });
@@ -88,21 +88,21 @@ async function main() {
     // Flow
     // -----------------------------------------------------------------------
 
-    const isNativeTokenIn = aTokenIn.toLowerCase() === zeroAddress;
-    const isNativeTokenOut = cTokenOut.toLowerCase() === zeroAddress;
+    const isNativeTokenIn = srcTokenIn.toLowerCase() === zeroAddress;
+    const isNativeTokenOut = dstTokenOut.toLowerCase() === zeroAddress;
     const [tokenInSymbol, tokenOutSymbol, tokenInBalance] = await Promise.all([
-        isNativeTokenIn ? Promise.resolve('NATIVE TOKEN') : getTokenSymbol(aClients.public, aTokenIn),
-        isNativeTokenOut ? Promise.resolve('NATIVE TOKEN') : getTokenSymbol(cClients.public, cTokenOut),
+        isNativeTokenIn ? Promise.resolve('NATIVE TOKEN') : getTokenSymbol(srcClients.public, srcTokenIn),
+        isNativeTokenOut ? Promise.resolve('NATIVE TOKEN') : getTokenSymbol(dstClients.public, dstTokenOut),
         isNativeTokenIn
-            ? aClients.public.getBalance({ address: accAddr })
-            : getBalanceOf(aClients.public, aTokenIn, accAddr),
+            ? srcClients.public.getBalance({ address: accAddr })
+            : getBalanceOf(srcClients.public, srcTokenIn, accAddr),
     ]);
 
     console.log();
     console.log(`Account:    ${pc.yellow(accAddr)}`);
-    console.log(`Chains:     from=${aChainId}  to=${cChainId}  hub=${bChainId}`);
-    console.log(`Token in:   ${fmtTokenSymbol(tokenInSymbol, aTokenIn)}`);
-    console.log(`Token out:  ${fmtTokenSymbol(tokenOutSymbol, cTokenOut)}`);
+    console.log(`Chains:     source=${srcChainId}  hub=${hubChainId}  destination=${dstChainId}`);
+    console.log(`Token in:   ${fmtTokenSymbol(tokenInSymbol, srcTokenIn)}`);
+    console.log(`Token out:  ${fmtTokenSymbol(tokenOutSymbol, dstTokenOut)}`);
     console.log(`Slippage:   ${slippage}  Priority: ${bridgeRoutePriority}`);
     console.log(`Balance:    ${tokenInBalance}`);
     console.log(`Amount:     ${rawAmount}`);
@@ -127,18 +127,18 @@ async function main() {
             actionType: sim.actionType,
             depositBoxId: sim.depositBox.id,
             depositBoxAddress: sim.depositBox.address,
-            hubChainId: bChainId,
-            fromChainId: aChainId,
-            toChainId: cChainId,
-            marketAddress: bMarket,
+            hubChainId,
+            fromChainId: srcChainId,
+            toChainId: dstChainId,
+            marketAddress: hubMarket,
             hubChainPt: sim.hubChainPt,
-            tokenIn: aTokenIn,
-            tokenOut: cTokenOut,
+            tokenIn: srcTokenIn,
+            tokenOut: dstTokenOut,
             amountIn: String(rawAmount),
             slippage,
             bridgeRoutePriority,
         });
-        challengeResult = await challengeAndSign(ctx, 'SUBMIT_INTENT', intentHash, aChainId);
+        challengeResult = await challengeAndSign(ctx, 'SUBMIT_INTENT', intentHash, srcChainId);
     } finally {
         console.groupEnd();
     }
@@ -151,14 +151,14 @@ async function main() {
         userAddress: accAddr,
         depositBoxAddress: sim.depositBox.address,
         depositBoxId: sim.depositBox.id,
-        marketAddress: bMarket,
+        marketAddress: hubMarket,
         hubChainPt: sim.hubChainPt,
-        hubChainId: bChainId,
-        fromChainId: aChainId,
-        toChainId: cChainId,
-        tokenIn: aTokenIn,
+        hubChainId,
+        fromChainId: srcChainId,
+        toChainId: dstChainId,
+        tokenIn: srcTokenIn,
         amountIn: String(rawAmount),
-        tokenOut: cTokenOut,
+        tokenOut: dstTokenOut,
         bridgeIOToken: sim.bridgeIOToken,
         slippage,
         bridgeRoutePriority,
@@ -197,11 +197,13 @@ async function main() {
     await pollAndHandleLoop(ctx, intent);
 }
 
-main()
-    .then(() => {
-        process.exit(0);
-    })
-    .catch((error) => {
-        console.error(error);
-        process.exit(1);
-    });
+if (require.main === module) {
+    main()
+        .then(() => {
+            process.exit(0);
+        })
+        .catch((error) => {
+            console.error(error);
+            process.exit(1);
+        });
+}

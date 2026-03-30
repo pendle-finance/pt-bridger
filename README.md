@@ -122,6 +122,16 @@ yarn bridge-pt-swap-bridge-back
 
 This command will read the `.env` file and execute the bridge, swap, and bridge back in order.
 
+### V2 (Intent-Based)
+
+There is also an intent-based version that uses the same `.env` setup but runs through Pendle's Cross-Chain Swap API instead. It only requires an additional `B_MARKET` env var (the Pendle market address on chain B).
+
+```sh
+yarn bridge-pt-swap-bridge-back --version=2
+```
+
+See [Cross-Chain Swap README](./CROSS_CHAIN_SWAP_README.md) for more details on how the intent-based flow works.
+
 Please note that the script **prompts** you for confirmation at every steps. If you wish to run this script without any confirmation, set the environment variable `NO_CONFIRM=1`:
 
 ```sh

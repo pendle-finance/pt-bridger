@@ -4,8 +4,12 @@ import { initializeEnv } from '../actions/initializeEnv';
 import { bridgePt, getOftToken } from '../bridgePt';
 import { bridgeTokenViaBungee } from '../bridgeTokenViaBungee';
 import { pendleSwapPtToToken } from '../pendleSwapPtToToken';
+import { getEnv } from '../utils/env';
+import { main as crossChainSwapMain } from './crossChainSwap';
 
-async function main() {
+const version = process.argv.includes('--version=2') ? 2 : 1;
+
+async function mainV1() {
     const {
         lzMetadata,
         aClients,
@@ -75,6 +79,18 @@ async function main() {
         console.groupEnd();
     }
 }
+
+async function mainV2() {
+    process.env.SOURCE_TOKEN_IN = getEnv('A_OFT');
+    process.env.DESTINATION_TOKEN_OUT = getEnv('A_TOKEN');
+    process.env.SOURCE_RPC_URL = getEnv('A_RPC_URL');
+    process.env.HUB_RPC_URL = getEnv('B_RPC_URL');
+    process.env.HUB_MARKET = getEnv('B_MARKET');
+    process.env.DESTINATION_RPC_URL = getEnv('A_RPC_URL');
+    await crossChainSwapMain();
+}
+
+const main = version === 2 ? mainV2 : mainV1;
 
 main()
     .then(() => {

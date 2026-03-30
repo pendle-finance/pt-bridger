@@ -271,6 +271,45 @@ export async function handleTerminalState(ctx: IntentEnvContext, intent: IntentR
     return false;
 }
 
+export async function continueFromIntent(
+    ctx: IntentEnvContext,
+    pendleApiBaseUrl: string | undefined,
+    intentId: string,
+): Promise<void> {
+    console.log(`Fetching intent ${pc.green(intentId)}...`);
+    let intent = await CrossChainSwapApi.getIntent(pendleApiBaseUrl, intentId);
+
+    console.log(`Intent ID:      ${pc.green(intent.intentId)}`);
+    console.log(`Status:         ${pc.cyan(intent.status)}`);
+    console.log(`OverallState:   ${pc.yellow(intent.overallState.toUpperCase())}`);
+    console.log();
+
+    if (await handleTerminalState(ctx, intent)) return;
+
+    if (intent.overallState === 'awaiting_deposit') {
+        console.group(pc.bold('== Deposit =='));
+        try {
+            const fundData = intent.fundData;
+            await depositStep(
+                ctx,
+                parseAddr(intent.depositBoxAddress),
+                BigInt(fundData.amount),
+                parseAddr(fundData.token),
+                fundData.chainId,
+            );
+            console.log('Confirming deposit with backend...');
+            intent = await CrossChainSwapApi.confirmDeposit(pendleApiBaseUrl, intent.intentId);
+            console.log(pc.green('Deposit confirmed.'));
+            console.log(`Status: ${pc.cyan(intent.status)}  OverallState: ${pc.yellow(intent.overallState.toUpperCase())}`);
+        } finally {
+            console.groupEnd();
+        }
+        console.log();
+    }
+
+    await pollAndHandleLoop(ctx, intent);
+}
+
 export async function pollAndHandleLoop(ctx: IntentEnvContext, intent: IntentResponse): Promise<void> {
     let current = intent;
     let challengeResult: { challengeId: string; signature: string };

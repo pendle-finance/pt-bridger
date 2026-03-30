@@ -63,9 +63,9 @@ Polls the intent status with exponential backoff (5s → 15s) until a terminal s
 
 Copy `.env.example` to `.env` and fill in the parameters.
 
-- Chain `A` is the **source chain** (where the user deposits tokens).
-- Chain `B` is the **hub chain** (where the Pendle market and swap happen).
-- Chain `C` is the **destination chain** (where the user receives the output token).
+- **Source** chain is where the user deposits tokens.
+- **Hub** chain is where the Pendle market and swap happen.
+- **Destination** chain is where the user receives the output token.
 
 ```sh
 PRIVATE_KEY=0xYourPrivateKey
@@ -73,13 +73,14 @@ PRIVATE_KEY=0xYourPrivateKey
 RAW_AMOUNT=15000000000000000000 # 15 * 10**18
 SLIPPAGE=0.005 # 0.5%
 
-A_RPC_URL=https://rpc-url-for-source-chain
-B_RPC_URL=https://rpc-url-for-hub-chain
-C_RPC_URL=https://rpc-url-for-destination-chain
+SOURCE_RPC_URL=https://rpc-url-for-source-chain
+SOURCE_TOKEN_IN=0xYourTokenIn    # token to deposit on source chain (e.g. bridged PT address)
 
-A_TOKEN_IN=0xYourTokenIn    # token to deposit on chain A (e.g. bridged PT address)
-B_MARKET=0xYourMarketAddress # Pendle market address on chain B
-C_TOKEN_OUT=0xYourTokenOut   # token to receive on chain C (e.g. USDC)
+HUB_RPC_URL=https://rpc-url-for-hub-chain
+HUB_MARKET=0xYourMarketAddress   # Pendle market address on hub chain
+
+DESTINATION_RPC_URL=https://rpc-url-for-destination-chain
+DESTINATION_TOKEN_OUT=0xYourTokenOut  # token to receive on destination chain (e.g. USDC)
 
 # Optional
 BRIDGE_ROUTE_PRIORITY=BEST_RETURN # BEST_RETURN (default) or FASTEST

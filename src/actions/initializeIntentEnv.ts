@@ -1,53 +1,53 @@
 import { type Address, createPublicClient, createWalletClient, http, type PublicClient, type WalletClient } from 'viem';
 import { type PrivateKeyAccount, privateKeyToAccount } from 'viem/accounts';
-import type { IntentEnvContext } from './intentActions';
 import { getEnv, getEnvAddress, getEnvBigInt, getEnvHex, getEnvNumber } from '../utils/env';
+import type { IntentEnvContext } from './intentActions';
 
 export async function initializeIntentEnv(): Promise<{
     account: PrivateKeyAccount;
     accAddr: Address;
-    aChainId: number;
-    bChainId: number;
-    cChainId: number;
-    bMarket: Address;
-    aTokenIn: Address;
-    cTokenOut: Address;
+    srcChainId: number;
+    hubChainId: number;
+    dstChainId: number;
+    hubMarket: Address;
+    srcTokenIn: Address;
+    dstTokenOut: Address;
     rawAmount: bigint;
     slippage: number;
     bridgeRoutePriority: 'BEST_RETURN' | 'FASTEST';
     pendleApiBaseUrl: string | undefined;
-    aClients: { public: PublicClient; wallet: WalletClient };
-    bClients: { public: PublicClient; wallet: WalletClient };
-    cClients: { public: PublicClient; wallet: WalletClient };
+    srcClients: { public: PublicClient; wallet: WalletClient };
+    hubClients: { public: PublicClient; wallet: WalletClient };
+    dstClients: { public: PublicClient; wallet: WalletClient };
     getClientsByChainId: (chainId: number) => { public: PublicClient; wallet: WalletClient };
     ctx: IntentEnvContext;
 }> {
     const account = privateKeyToAccount(getEnvHex('PRIVATE_KEY'));
     const accAddr = account.address;
 
-    const aTransport = http(getEnv('A_RPC_URL'));
-    const bTransport = http(getEnv('B_RPC_URL'));
-    const cTransport = http(getEnv('C_RPC_URL'));
+    const srcTransport = http(getEnv('SOURCE_RPC_URL'));
+    const hubTransport = http(getEnv('HUB_RPC_URL'));
+    const dstTransport = http(getEnv('DESTINATION_RPC_URL'));
 
-    const aClients = {
-        public: createPublicClient({ transport: aTransport }),
-        wallet: createWalletClient({ account, transport: aTransport }),
+    const srcClients = {
+        public: createPublicClient({ transport: srcTransport }),
+        wallet: createWalletClient({ account, transport: srcTransport }),
     };
-    const bClients = {
-        public: createPublicClient({ transport: bTransport }),
-        wallet: createWalletClient({ account, transport: bTransport }),
+    const hubClients = {
+        public: createPublicClient({ transport: hubTransport }),
+        wallet: createWalletClient({ account, transport: hubTransport }),
     };
-    const cClients = {
-        public: createPublicClient({ transport: cTransport }),
-        wallet: createWalletClient({ account, transport: cTransport }),
+    const dstClients = {
+        public: createPublicClient({ transport: dstTransport }),
+        wallet: createWalletClient({ account, transport: dstTransport }),
     };
 
-    const aChainId = await aClients.public.getChainId();
-    const bChainId = await bClients.public.getChainId();
-    const cChainId = await cClients.public.getChainId();
-    const bMarket = getEnvAddress('B_MARKET');
-    const aTokenIn = getEnvAddress('A_TOKEN_IN');
-    const cTokenOut = getEnvAddress('C_TOKEN_OUT');
+    const srcChainId = await srcClients.public.getChainId();
+    const hubChainId = await hubClients.public.getChainId();
+    const dstChainId = await dstClients.public.getChainId();
+    const hubMarket = getEnvAddress('HUB_MARKET');
+    const srcTokenIn = getEnvAddress('SOURCE_TOKEN_IN');
+    const dstTokenOut = getEnvAddress('DESTINATION_TOKEN_OUT');
     const rawAmount = getEnvBigInt('RAW_AMOUNT');
     const slippage = getEnvNumber('SLIPPAGE');
     const rawPriority = process.env.BRIDGE_ROUTE_PRIORITY ?? 'BEST_RETURN';
@@ -58,30 +58,30 @@ export async function initializeIntentEnv(): Promise<{
     const pendleApiBaseUrl = process.env.PENDLE_API_BASE_URL;
 
     function getClientsByChainId(chainId: number) {
-        if (chainId === aChainId) return aClients;
-        if (chainId === bChainId) return bClients;
-        if (chainId === cChainId) return cClients;
+        if (chainId === srcChainId) return srcClients;
+        if (chainId === hubChainId) return hubClients;
+        if (chainId === dstChainId) return dstClients;
         throw new Error(
-            `Unexpected chainId ${chainId}. Expected ${aChainId} (A), ${bChainId} (B), or ${cChainId} (C).`,
+            `Unexpected chainId ${chainId}. Expected ${srcChainId} (source), ${hubChainId} (hub), or ${dstChainId} (destination).`,
         );
     }
 
     return {
         account,
         accAddr,
-        aChainId,
-        bChainId,
-        cChainId,
-        bMarket,
-        aTokenIn,
-        cTokenOut,
+        srcChainId,
+        hubChainId,
+        dstChainId,
+        hubMarket,
+        srcTokenIn,
+        dstTokenOut,
         rawAmount,
         slippage,
         bridgeRoutePriority,
         pendleApiBaseUrl,
-        aClients,
-        bClients,
-        cClients,
+        srcClients,
+        hubClients,
+        dstClients,
         getClientsByChainId,
         ctx: { account, accAddr, pendleApiBaseUrl, getClientsByChainId },
     };
