@@ -127,7 +127,7 @@ This command will read the `.env` file and execute the bridge, swap, and bridge 
 There is also an intent-based version that uses the same `.env` setup but runs through Pendle's Cross-Chain Swap API instead. It only requires an additional `B_MARKET` env var (the Pendle market address on chain B).
 
 ```sh
-yarn bridge-pt-swap-bridge-back --version=2
+yarn bridge-pt-swap-bridge-back --usePendleBackend
 ```
 
 See [Cross-Chain Swap README](./CROSS_CHAIN_SWAP_README.md) for more details on how the intent-based flow works.

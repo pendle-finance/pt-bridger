@@ -48,8 +48,8 @@ async function main() {
 
     console.log();
 
-    const { ctx } = await initializeIntentEnv();
-    await continueFromIntent(ctx, pendleApiBaseUrl, selectedIntentId);
+    const env = await initializeIntentEnv();
+    await continueFromIntent(env, selectedIntentId);
 }
 
 main()

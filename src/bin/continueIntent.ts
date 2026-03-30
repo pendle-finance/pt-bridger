@@ -7,8 +7,8 @@ async function main() {
         throw new Error('Usage: yarn continue-intent <intentId>');
     }
 
-    const { pendleApiBaseUrl, ctx } = await initializeIntentEnv();
-    await continueFromIntent(ctx, pendleApiBaseUrl, intentId);
+    const env = await initializeIntentEnv();
+    await continueFromIntent(env, intentId);
 }
 
 main()

@@ -1,15 +1,16 @@
 import pc from 'picocolors';
 import { BungeeApi } from '../APIs/BungeeApi';
 import { initializeEnv } from '../actions/initializeEnv';
+import { initializeIntentEnv } from '../actions/initializeIntentEnv';
+import { executeCrossChainSwap } from '../actions/intentActions';
 import { bridgePt, getOftToken } from '../bridgePt';
 import { bridgeTokenViaBungee } from '../bridgeTokenViaBungee';
 import { pendleSwapPtToToken } from '../pendleSwapPtToToken';
-import { getEnv } from '../utils/env';
-import { main as crossChainSwapMain } from './crossChainSwap';
+import { getEnv, getEnvAddress } from '../utils/env';
 
-const version = process.argv.includes('--version=2') ? 2 : 1;
+const usePendleBackend = process.argv.includes('--usePendleBackend');
 
-async function mainV1() {
+async function executeDirect() {
     const {
         lzMetadata,
         aClients,
@@ -80,17 +81,20 @@ async function mainV1() {
     }
 }
 
-async function mainV2() {
-    process.env.SOURCE_TOKEN_IN = getEnv('A_OFT');
-    process.env.DESTINATION_TOKEN_OUT = getEnv('A_TOKEN');
-    process.env.SOURCE_RPC_URL = getEnv('A_RPC_URL');
-    process.env.HUB_RPC_URL = getEnv('B_RPC_URL');
-    process.env.HUB_MARKET = getEnv('B_MARKET');
-    process.env.DESTINATION_RPC_URL = getEnv('A_RPC_URL');
-    await crossChainSwapMain();
+async function executeViaPendleBackend() {
+    const env = await initializeIntentEnv({
+        srcRpcUrl: getEnv('A_RPC_URL'),
+        hubRpcUrl: getEnv('B_RPC_URL'),
+        dstRpcUrl: getEnv('A_RPC_URL'),
+        srcTokenIn: getEnvAddress('A_OFT'),
+        dstTokenOut: getEnvAddress('A_TOKEN'),
+        hubMarket: getEnvAddress('B_MARKET'),
+    });
+
+    await executeCrossChainSwap(env);
 }
 
-const main = version === 2 ? mainV2 : mainV1;
+const main = usePendleBackend ? executeViaPendleBackend : executeDirect;
 
 main()
     .then(() => {

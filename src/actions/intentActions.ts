@@ -1,18 +1,12 @@
 import select from '@inquirer/select';
 import pc from 'picocolors';
-import {
-    type Address,
-    encodeAbiParameters,
-    encodeFunctionData,
-    erc20Abi,
-    keccak256,
-    type PublicClient,
-    type WalletClient,
-    zeroAddress,
-} from 'viem';
-import type { PrivateKeyAccount } from 'viem/accounts';
+import { type Address, encodeAbiParameters, encodeFunctionData, erc20Abi, keccak256, zeroAddress } from 'viem';
 import * as CrossChainSwapApi from '../APIs/PendleCrossChainSwapApi';
-import type { IntentResponse, OverallIntentState } from '../types/PendleCrossChainSwapApiTypes';
+import type {
+    IntentResponse,
+    OverallIntentState,
+    SimulateCrossChainSwapResponse,
+} from '../types/PendleCrossChainSwapApiTypes';
 import {
     confirmOrThrow,
     debugLog,
@@ -22,6 +16,7 @@ import {
     parseAddr,
     sleep,
 } from '../utils/misc';
+import type { IntentEnv } from './initializeIntentEnv';
 
 export const TERMINAL_STATES: ReadonlySet<OverallIntentState> = new Set([
     'completed',
@@ -86,7 +81,7 @@ export function computeIntentHash(params: {
     return keccak256(encoded);
 }
 
-export function computeIntentHashFromIntent(intent: IntentResponse): string {
+function computeIntentHashFromIntent(intent: IntentResponse): string {
     return computeIntentHash({
         userAddress: intent.userAddress,
         actionType: intent.actionType,
@@ -105,22 +100,15 @@ export function computeIntentHashFromIntent(intent: IntentResponse): string {
     });
 }
 
-export type IntentEnvContext = {
-    account: PrivateKeyAccount;
-    accAddr: Address;
-    pendleApiBaseUrl: string | undefined;
-    getClientsByChainId: (chainId: number) => { public: PublicClient; wallet: WalletClient };
-};
-
-export async function challengeAndSign(
-    ctx: IntentEnvContext,
+async function challengeAndSign(
+    env: IntentEnv,
     action: 'SUBMIT_INTENT' | 'CANCEL_INTENT' | 'RETRY_INTENT',
     intentHash: string,
     chainId: number,
 ): Promise<{ challengeId: string; signature: string }> {
-    const clients = ctx.getClientsByChainId(chainId);
-    const challenge = await CrossChainSwapApi.generateChallenge(ctx.pendleApiBaseUrl, {
-        address: ctx.accAddr,
+    const clients = env.getClientsByChainId(chainId);
+    const challenge = await CrossChainSwapApi.generateChallenge(env.pendleApiBaseUrl, {
+        address: env.accAddr,
         chainId,
         action,
         intentHash,
@@ -132,20 +120,20 @@ export async function challengeAndSign(
     console.log();
 
     await confirmOrThrow('Sign this message?', 'User rejected signing');
-    const signature = await clients.wallet.signMessage({ account: ctx.account, message: challenge.message });
+    const signature = await clients.wallet.signMessage({ account: env.account, message: challenge.message });
     debugLog(`Signature: ${signature}`);
 
     return { challengeId: challenge.id, signature };
 }
 
-export async function depositStep(
-    ctx: IntentEnvContext,
+async function depositStep(
+    env: IntentEnv,
     depositBoxAddress: Address,
     amount: bigint,
     token: Address,
     chainId: number,
 ) {
-    const clients = ctx.getClientsByChainId(chainId);
+    const clients = env.getClientsByChainId(chainId);
     const isNative = token.toLowerCase() === zeroAddress;
     const tokenSymbol = isNative ? 'NATIVE TOKEN' : await getTokenSymbol(clients.public, token);
 
@@ -159,9 +147,9 @@ export async function depositStep(
     }
 
     const txData = isNative
-        ? { from: ctx.accAddr, to: depositBoxAddress, value: amount, data: '0x' as const }
+        ? { from: env.accAddr, to: depositBoxAddress, value: amount, data: '0x' as const }
         : {
-              from: ctx.accAddr,
+              from: env.accAddr,
               to: token,
               value: 0n,
               data: encodeFunctionData({
@@ -180,14 +168,14 @@ export async function depositStep(
     console.log();
     await confirmOrThrow('Send deposit transaction?', 'User rejected deposit');
 
-    const hash = await clients.wallet.sendTransaction({ ...populatedTx, account: ctx.account, chain: null });
+    const hash = await clients.wallet.sendTransaction({ ...populatedTx, account: env.account, chain: null });
     console.log(`Tx hash: ${pc.cyan(hash)}`);
     const receipt = await clients.public.waitForTransactionReceipt({ hash });
     console.log(`Confirmed in block ${receipt.blockNumber}`);
     console.log();
 }
 
-export async function pollIntent(pendleApiBaseUrl: string | undefined, intentId: string): Promise<IntentResponse> {
+async function pollIntent(pendleApiBaseUrl: string | undefined, intentId: string): Promise<IntentResponse> {
     let delayMs = 5_000;
     const MAX_DELAY_MS = 15_000;
     const MAX_POLL_DURATION_MS = 24 * 60 * 60 * 1_000;
@@ -225,7 +213,7 @@ export async function pollIntent(pendleApiBaseUrl: string | undefined, intentId:
     }
 }
 
-export async function handleFailure(intent: IntentResponse): Promise<'retry' | 'cancel' | 'exit'> {
+async function handleFailure(intent: IntentResponse): Promise<'retry' | 'cancel' | 'exit'> {
     console.log(pc.red(`Intent failed. Error: ${intent.errorMessage ?? 'unknown'}`));
     console.log();
 
@@ -242,7 +230,7 @@ export async function handleFailure(intent: IntentResponse): Promise<'retry' | '
     return select({ message: 'Choose action:', choices });
 }
 
-export async function handleTerminalState(ctx: IntentEnvContext, intent: IntentResponse): Promise<boolean> {
+async function handleTerminalState(env: IntentEnv, intent: IntentResponse): Promise<boolean> {
     if (intent.overallState === 'completed' || intent.overallState === 'refunded') {
         const receivedAmount = intent.withdrawalOutput ?? '-';
         const receivedToken = intent.fundData.token;
@@ -250,7 +238,7 @@ export async function handleTerminalState(ctx: IntentEnvContext, intent: IntentR
         const isNativeReceived = receivedToken.toLowerCase() === zeroAddress;
         const receivedSymbol = isNativeReceived
             ? 'NATIVE TOKEN'
-            : await getTokenSymbol(ctx.getClientsByChainId(receivedChain).public, parseAddr(receivedToken));
+            : await getTokenSymbol(env.getClientsByChainId(receivedChain).public, parseAddr(receivedToken));
 
         if (intent.overallState === 'completed') {
             console.log(pc.green('Intent completed successfully!'));
@@ -271,59 +259,235 @@ export async function handleTerminalState(ctx: IntentEnvContext, intent: IntentR
     return false;
 }
 
-export async function continueFromIntent(
-    ctx: IntentEnvContext,
-    pendleApiBaseUrl: string | undefined,
-    intentId: string,
-): Promise<void> {
+// ---------------------------------------------------------------------------
+// Public flows
+// ---------------------------------------------------------------------------
+
+export async function continueFromIntent(env: IntentEnv, intentId: string): Promise<void> {
     console.log(`Fetching intent ${pc.green(intentId)}...`);
-    let intent = await CrossChainSwapApi.getIntent(pendleApiBaseUrl, intentId);
+    let intent = await CrossChainSwapApi.getIntent(env.pendleApiBaseUrl, intentId);
 
     console.log(`Intent ID:      ${pc.green(intent.intentId)}`);
     console.log(`Status:         ${pc.cyan(intent.status)}`);
     console.log(`OverallState:   ${pc.yellow(intent.overallState.toUpperCase())}`);
     console.log();
 
-    if (await handleTerminalState(ctx, intent)) return;
+    if (await handleTerminalState(env, intent)) return;
 
     if (intent.overallState === 'awaiting_deposit') {
         console.group(pc.bold('== Deposit =='));
         try {
             const fundData = intent.fundData;
             await depositStep(
-                ctx,
+                env,
                 parseAddr(intent.depositBoxAddress),
                 BigInt(fundData.amount),
                 parseAddr(fundData.token),
                 fundData.chainId,
             );
             console.log('Confirming deposit with backend...');
-            intent = await CrossChainSwapApi.confirmDeposit(pendleApiBaseUrl, intent.intentId);
+            intent = await CrossChainSwapApi.confirmDeposit(env.pendleApiBaseUrl, intent.intentId);
             console.log(pc.green('Deposit confirmed.'));
-            console.log(`Status: ${pc.cyan(intent.status)}  OverallState: ${pc.yellow(intent.overallState.toUpperCase())}`);
+            console.log(
+                `Status: ${pc.cyan(intent.status)}  OverallState: ${pc.yellow(intent.overallState.toUpperCase())}`,
+            );
         } finally {
             console.groupEnd();
         }
         console.log();
     }
 
-    await pollAndHandleLoop(ctx, intent);
+    await pollAndHandleLoop(env, intent);
 }
 
-export async function pollAndHandleLoop(ctx: IntentEnvContext, intent: IntentResponse): Promise<void> {
+const QUOTE_STALENESS_MS = 15_000;
+
+function displaySimulation(sim: SimulateCrossChainSwapResponse) {
+    const out = sim.simulateOutput;
+    const pct = (v: number) => `${(v * 100).toFixed(4)}%`;
+    console.log(`Action type:        ${pc.cyan(sim.actionType)}`);
+    console.log(`Slippage:           ${pct(sim.slippage)}`);
+    console.log(`Price impact:       ${pct(sim.priceImpact)}`);
+    const minOutputBn = BigInt(out.minOutput);
+    const expectedOutput = (minOutputBn * 1_000_000n) / BigInt(Math.round((1 - sim.slippage) * 1_000_000));
+    console.log(`Expected output:    ${expectedOutput}`);
+    console.log(`Min output:         ${pc.yellow(out.minOutput)}`);
+    console.log(`Implied APY:        ${pct(out.currentImpliedApy)} -> ${pct(out.newImpliedApy)}`);
+    if (out.effectiveApy !== undefined) {
+        console.log(`Effective APY:      ${pct(out.effectiveApy)}`);
+    }
+    console.log(`Fees (USD):         ${out.fee.tradingFee + out.fee.bridgeFee + out.fee.gasFee}`);
+    console.log(`Time est (s):       ${out.totalTimeEstimate.totalEstimate_s}`);
+    console.log(`Deposit box:        ${sim.depositBox.address} (id: ${sim.depositBox.id})`);
+    console.log(`Expect gas top-up:  ${sim.expectGasTopUp}`);
+}
+
+export async function executeCrossChainSwap(env: IntentEnv): Promise<void> {
+    const {
+        accAddr,
+        srcChainId,
+        hubChainId,
+        dstChainId,
+        hubMarket,
+        srcTokenIn,
+        dstTokenOut,
+        rawAmount,
+        slippage,
+        bridgeRoutePriority,
+        pendleApiBaseUrl,
+        srcClients,
+        dstClients,
+    } = env;
+
+    const isNativeTokenIn = srcTokenIn.toLowerCase() === zeroAddress;
+    const isNativeTokenOut = dstTokenOut.toLowerCase() === zeroAddress;
+    const [tokenInSymbol, tokenOutSymbol, tokenInBalance] = await Promise.all([
+        isNativeTokenIn ? Promise.resolve('NATIVE TOKEN') : getTokenSymbol(srcClients.public, srcTokenIn),
+        isNativeTokenOut ? Promise.resolve('NATIVE TOKEN') : getTokenSymbol(dstClients.public, dstTokenOut),
+        isNativeTokenIn
+            ? srcClients.public.getBalance({ address: accAddr })
+            : getBalanceOf(srcClients.public, srcTokenIn, accAddr),
+    ]);
+
+    console.log();
+    console.log(`Account:    ${pc.yellow(accAddr)}`);
+    console.log(`Chains:     source=${srcChainId}  hub=${hubChainId}  destination=${dstChainId}`);
+    console.log(`Token in:   ${fmtTokenSymbol(tokenInSymbol, srcTokenIn)}`);
+    console.log(`Token out:  ${fmtTokenSymbol(tokenOutSymbol, dstTokenOut)}`);
+    console.log(`Slippage:   ${slippage}  Priority: ${bridgeRoutePriority}`);
+    console.log(`Balance:    ${tokenInBalance}`);
+    console.log(`Amount:     ${rawAmount}`);
+    console.log();
+
+    // Step 1: Simulate
+    console.group(pc.bold('== Simulate =='));
+    let sim: SimulateCrossChainSwapResponse;
+    try {
+        while (true) {
+            console.log('Fetching simulation...');
+            sim = await CrossChainSwapApi.simulateCrossChainSwap(pendleApiBaseUrl, hubChainId, hubMarket, {
+                receiver: accAddr,
+                tokenIn: srcTokenIn,
+                amountIn: String(rawAmount),
+                tokenOut: dstTokenOut,
+                fromChainId: srcChainId,
+                toChainId: dstChainId,
+                slippage,
+                bridgeRoutePriority,
+            });
+            const fetchedAt = Date.now();
+
+            console.log();
+            displaySimulation(sim);
+            console.log();
+
+            await confirmOrThrow('Proceed with this simulation?', 'User rejected simulation');
+
+            const elapsed = Date.now() - fetchedAt;
+            if (elapsed > QUOTE_STALENESS_MS) {
+                console.log(pc.yellow(`Quote is stale (${(elapsed / 1000).toFixed(1)}s elapsed). Re-simulating...`));
+                continue;
+            }
+            break;
+        }
+    } finally {
+        console.groupEnd();
+    }
+    console.log();
+
+    // Step 2: Challenge + Sign
+    console.group(pc.bold('== Challenge + Sign =='));
+    let challengeResult: { challengeId: string; signature: string };
+    try {
+        const intentHash = computeIntentHash({
+            userAddress: accAddr,
+            actionType: sim.actionType,
+            depositBoxId: sim.depositBox.id,
+            depositBoxAddress: sim.depositBox.address,
+            hubChainId,
+            fromChainId: srcChainId,
+            toChainId: dstChainId,
+            marketAddress: hubMarket,
+            hubChainPt: sim.hubChainPt,
+            tokenIn: srcTokenIn,
+            tokenOut: dstTokenOut,
+            amountIn: String(rawAmount),
+            slippage,
+            bridgeRoutePriority,
+        });
+        challengeResult = await challengeAndSign(env, 'SUBMIT_INTENT', intentHash, srcChainId);
+    } finally {
+        console.groupEnd();
+    }
+    console.log();
+
+    // Step 3: Submit Intent
+    console.group(pc.bold('== Submit Intent =='));
+    let intent = await CrossChainSwapApi.submitIntent(pendleApiBaseUrl, {
+        actionType: sim.actionType,
+        userAddress: accAddr,
+        depositBoxAddress: sim.depositBox.address,
+        depositBoxId: sim.depositBox.id,
+        marketAddress: hubMarket,
+        hubChainPt: sim.hubChainPt,
+        hubChainId,
+        fromChainId: srcChainId,
+        toChainId: dstChainId,
+        tokenIn: srcTokenIn,
+        amountIn: String(rawAmount),
+        tokenOut: dstTokenOut,
+        bridgeIOToken: sim.bridgeIOToken,
+        slippage,
+        bridgeRoutePriority,
+        challengeId: challengeResult.challengeId,
+        signature: challengeResult.signature,
+        expectGasTopUp: sim.expectGasTopUp,
+        simulateOutput: sim.simulateOutput,
+    });
+    console.log(`Intent ID:      ${pc.green(intent.intentId)}`);
+    console.log(`Status:         ${pc.cyan(intent.status)}`);
+    console.log(`OverallState:   ${pc.yellow(intent.overallState.toUpperCase())}`);
+    console.groupEnd();
+    console.log();
+
+    // Step 4: Deposit
+    console.group(pc.bold('== Deposit =='));
+    try {
+        const fundData = intent.fundData;
+        await depositStep(
+            env,
+            parseAddr(intent.depositBoxAddress),
+            BigInt(fundData.amount),
+            parseAddr(fundData.token),
+            fundData.chainId,
+        );
+        console.log('Confirming deposit with backend...');
+        intent = await CrossChainSwapApi.confirmDeposit(pendleApiBaseUrl, intent.intentId);
+        console.log(pc.green('Deposit confirmed.'));
+        console.log(`Status: ${pc.cyan(intent.status)}  OverallState: ${pc.yellow(intent.overallState.toUpperCase())}`);
+    } finally {
+        console.groupEnd();
+    }
+    console.log();
+
+    // Step 5: Poll + Failure handling loop
+    await pollAndHandleLoop(env, intent);
+}
+
+async function pollAndHandleLoop(env: IntentEnv, intent: IntentResponse): Promise<void> {
     let current = intent;
     let challengeResult: { challengeId: string; signature: string };
 
     while (true) {
         console.group(pc.bold('== Polling Intent Status =='));
         try {
-            current = await pollIntent(ctx.pendleApiBaseUrl, current.intentId);
+            current = await pollIntent(env.pendleApiBaseUrl, current.intentId);
         } finally {
             console.groupEnd();
         }
         console.log();
 
-        if (await handleTerminalState(ctx, current)) break;
+        if (await handleTerminalState(env, current)) break;
 
         // failed
         const action = await handleFailure(current);
@@ -335,7 +499,7 @@ export async function pollAndHandleLoop(ctx: IntentEnvContext, intent: IntentRes
             try {
                 const retryIntentHash = computeIntentHashFromIntent(current);
                 challengeResult = await challengeAndSign(
-                    ctx,
+                    env,
                     challengeAction,
                     retryIntentHash,
                     current.fundData.chainId,
@@ -346,13 +510,13 @@ export async function pollAndHandleLoop(ctx: IntentEnvContext, intent: IntentRes
 
             if (action === 'retry') {
                 console.log('Retrying intent...');
-                current = await CrossChainSwapApi.retryIntent(ctx.pendleApiBaseUrl, current.intentId, {
+                current = await CrossChainSwapApi.retryIntent(env.pendleApiBaseUrl, current.intentId, {
                     challengeId: challengeResult.challengeId,
                     signature: challengeResult.signature,
                 });
             } else {
                 console.log('Cancelling intent...');
-                current = await CrossChainSwapApi.cancelIntent(ctx.pendleApiBaseUrl, current.intentId, {
+                current = await CrossChainSwapApi.cancelIntent(env.pendleApiBaseUrl, current.intentId, {
                     challengeId: challengeResult.challengeId,
                     signature: challengeResult.signature,
                 });
@@ -365,7 +529,7 @@ export async function pollAndHandleLoop(ctx: IntentEnvContext, intent: IntentRes
         } catch (err) {
             console.log(pc.red(`${action === 'retry' ? 'Retry' : 'Cancel'} failed: ${err}`));
             console.log('Fetching latest intent state...');
-            current = await CrossChainSwapApi.getIntent(ctx.pendleApiBaseUrl, current.intentId);
+            current = await CrossChainSwapApi.getIntent(env.pendleApiBaseUrl, current.intentId);
             console.log(`Status:         ${pc.cyan(current.status)}`);
             console.log(`OverallState:   ${pc.yellow(current.overallState.toUpperCase())}`);
             console.log();
