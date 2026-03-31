@@ -1,5 +1,7 @@
 # pt-bridger
 
+> **Looking for a simpler approach?** Check out the [Intent-Based flow](./CROSS_CHAIN_SWAP_README.md) — it handles bridging and swapping as a single intent managed by Pendle's backend.
+
 This script helps performing the bridging and swapping PT with another token. Basically it allows to do the following actions sequentially, in one go:
 
 - Bridge PT from chain `A` to chain `B` (via LayerZero natively);
@@ -119,6 +121,16 @@ yarn bridge-pt-swap-bridge-back
 ```
 
 This command will read the `.env` file and execute the bridge, swap, and bridge back in order.
+
+### V2 (Intent-Based)
+
+There is also an intent-based version that uses the same `.env` setup but runs through Pendle's Cross-Chain Swap API instead. It only requires an additional `B_MARKET` env var (the Pendle market address on chain B).
+
+```sh
+yarn bridge-pt-swap-bridge-back --usePendleBackend
+```
+
+See [Cross-Chain Swap README](./CROSS_CHAIN_SWAP_README.md) for more details on how the intent-based flow works.
 
 Please note that the script **prompts** you for confirmation at every steps. If you wish to run this script without any confirmation, set the environment variable `NO_CONFIRM=1`:
 

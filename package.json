@@ -8,6 +8,7 @@
     },
     "dependencies": {
         "@inquirer/confirm": "^6.0.8",
+        "@inquirer/select": "^5.1.2",
         "dotenv": "^17.3.1",
         "picocolors": "^1.1.1",
         "tsx": "^4.21.0",
@@ -18,6 +19,9 @@
         "pendle-swap-pt-to-token": "tsx ./src/bin/pendleSwapPtToToken.ts",
         "bridge-token-via-bungee": "tsx ./src/bin/bridgeTokenViaBungee.ts",
         "bridge-pt-swap-bridge-back": "tsx ./src/bin/bridgePtSwapBridgeBack.ts",
-        "clean-cache": "rm -rf cache/"
+        "clean-cache": "rm -rf cache/",
+        "cross-chain-swap": "tsx ./src/bin/crossChainSwap.ts",
+        "list-intents": "tsx ./src/bin/listIntents.ts",
+        "continue-intent": "tsx ./src/bin/continueIntent.ts"
     }
 }

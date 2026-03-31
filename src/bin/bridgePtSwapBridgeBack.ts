@@ -1,11 +1,16 @@
 import pc from 'picocolors';
 import { BungeeApi } from '../APIs/BungeeApi';
 import { initializeEnv } from '../actions/initializeEnv';
+import { initializeIntentEnv } from '../actions/initializeIntentEnv';
+import { executeCrossChainSwap } from '../actions/intentActions';
 import { bridgePt, getOftToken } from '../bridgePt';
 import { bridgeTokenViaBungee } from '../bridgeTokenViaBungee';
 import { pendleSwapPtToToken } from '../pendleSwapPtToToken';
+import { getEnv, getEnvAddress } from '../utils/env';
 
-async function main() {
+const usePendleBackend = process.argv.includes('--usePendleBackend');
+
+async function executeDirect() {
     const {
         lzMetadata,
         aClients,
@@ -75,6 +80,21 @@ async function main() {
         console.groupEnd();
     }
 }
+
+async function executeViaPendleBackend() {
+    const env = await initializeIntentEnv({
+        srcRpcUrl: getEnv('A_RPC_URL'),
+        hubRpcUrl: getEnv('B_RPC_URL'),
+        dstRpcUrl: getEnv('A_RPC_URL'),
+        srcTokenIn: getEnvAddress('A_OFT'),
+        dstTokenOut: getEnvAddress('A_TOKEN'),
+        hubMarket: getEnvAddress('B_MARKET'),
+    });
+
+    await executeCrossChainSwap(env);
+}
+
+const main = usePendleBackend ? executeViaPendleBackend : executeDirect;
 
 main()
     .then(() => {
