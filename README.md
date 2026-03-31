@@ -132,6 +132,8 @@ yarn bridge-pt-swap-bridge-back --usePendleBackend
 
 See [Cross-Chain Swap README](./CROSS_CHAIN_SWAP_README.md) for more details on how the intent-based flow works.
 
+![](./media/bridge-pt-swap-bridge-back-use-pendle-backend.gif)
+
 Please note that the script **prompts** you for confirmation at every steps. If you wish to run this script without any confirmation, set the environment variable `NO_CONFIRM=1`:
 
 ```sh

@@ -57,6 +57,10 @@ Polls the intent status with exponential backoff (5s → 15s) until a terminal s
 
 </details>
 
+## Demo
+
+![](./media/cross-chain-swap.gif)
+
 ## Usage
 
 ### Environment
